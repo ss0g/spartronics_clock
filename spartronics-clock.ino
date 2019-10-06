@@ -62,9 +62,11 @@ static const CalendarTime_t _kickoff_date = { 2020, 1, 4, 7, 0, 0 };
 static const CalendarTime_t _important_times[] = {
     { 2019, 10, 11, 15, 15,  0 },       // GirlsGen pack time
     { 2020,  1,  4,  7,  0,  0 },       // Kickoff
+    { 2020,  2, 18, 21,  0,  0 },       // Pseudo-bag-day
     { 2020,  2, 28, 12,  0,  0 },       // Glacier Peak
  // { 2020,  3, 13, 12,  0,  0 },       // (EVENT #2 - TBD)
     { 2020,  4,  1,  9,  0,  0 },       // District Champs
+    { 2020,  4, 14, 12,  0,  0 },       // Worlds
 };
 
 
