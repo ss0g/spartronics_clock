@@ -41,6 +41,10 @@
 
 #define NUM_ELEMENTS(x) (sizeof(x) / sizeof(x[0]))
 
+// Spartronics colors!
+#define SPARTRONICS_YELLOW Adafruit_NeoMatrix::Color(90, 90, 0)
+#define SPARTRONICS_BLUE Adafruit_NeoMatrix::Color(0, 50, 170)
+
 /**
  *  Structure to hold time values in their human-readable components
  */
@@ -77,16 +81,26 @@ static const CalendarTime_t _important_times[] = {
 typedef enum {
     COLOR_COLON,
     COLOR_DIGITS,
-    COLOR_MESSAGE,
+    COLOR_RED,
+    COLOR_ORANGE,
+    COLOR_YELLOW,
+    COLOR_GREEN,
+    COLOR_BLUE,
+    COLOR_PURPLE,
     // Insert new color names above this line
     COLOR_MAX
 } ColorName_t;
 
 // colors used for the matrix display
 static const uint16_t _colors[] = {
-    [COLOR_COLON] = Adafruit_NeoMatrix::Color(0, 0, 255),    // Blue
-    [COLOR_DIGITS] = Adafruit_NeoMatrix::Color(25, 150, 0),  // Yellow
-    [COLOR_MESSAGE] = Adafruit_NeoMatrix::Color(255, 0, 0)   // Red
+    [COLOR_COLON] = SPARTRONICS_BLUE,
+    [COLOR_DIGITS] = SPARTRONICS_YELLOW,
+    [COLOR_RED] = Adafruit_NeoMatrix::Color(255, 0, 0),
+    [COLOR_ORANGE] = Adafruit_NeoMatrix::Color(255, 255, 0),
+    [COLOR_YELLOW] = SPARTRONICS_YELLOW,
+    [COLOR_GREEN] = Adafruit_NeoMatrix::Color(0, 255, 0),
+    [COLOR_BLUE] = SPARTRONICS_BLUE,
+    [COLOR_PURPLE] = Adafruit_NeoMatrix::Color(0, 255, 255),
 };
 
 /**
@@ -100,6 +114,8 @@ typedef enum   // at each button mode press, display mode changes accordingly
     STATE_INIT = 0,
     STATE_MESSAGE,
     STATE_COUNTDOWN,
+    STATE_DATE,
+    STATE_TIME,
     // Add new states above this line
     STATE_MAX
 } State_t;
@@ -120,7 +136,7 @@ typedef enum
     EVENT_MAX
 } Event_t;
 
-State_t state;  // tracks the state of the display
+State_t _state;  // tracks the state of the display
 static const char * const _message = { "Spartronics: 4915. Woot!" };
 
 /**
@@ -219,87 +235,10 @@ void event_callback(uint8_t pin, uint8_t event, uint8_t count, uint16_t length) 
             return;
     }
     // update the state machine
-    state = state_machine(state, _event);
+    _state = state_machine(_state, _event);
 }
 
 
-/**
- * Set time: 1st get time from computer, 2nd write to RTC
- * Note: this code could be simplified by switching use of Serial.parseInt()
- */
-time_t set_time()
-{
-    // prompt user for time and set it on the board
-    state = STATE_MESSAGE;
-    print_scroll("Enter time using Serial Port");
-
-    // read & parse time from the user
-    Serial.println("Make sure Serial Terminal is set to Newline");
-    Serial.println("Enter today's date and time: YYYY:MM:DD:hh:mm:ss");
-
-    // NOTE: sscanf can be replaced w/ Serial.parseInt()
-    char *datetime = recvWithEndMarker();
-    Serial.print("Received: "); Serial.println(datetime);
-    CalendarTime_t set_time;
-    if (sscanf(datetime, "%04u:%02u:%02u:%02u:%02u:%02u",
-                &set_time.year, &set_time.month, &set_time.day,
-                &set_time.hour, &set_time.minute, &set_time.second) != 6)
-    {
-        Serial.println("Error: problem parsing YYYY:MM:DD:hh:mm:ss");
-        return 0;
-    }
-
-    // set RTC time
-    time_t t = convert_time(set_time);
-    if (RTC.set(t) == false) // error occured while setting clock
-    {
-        state = STATE_MESSAGE;
-        print_scroll("Error: RTC.set() failed!");
-#if DEBUG_ON
-        Serial.println("Error: RTC.set failed.");
-#endif
-    }
-
-    return t;
-}
-
-// code from: http: //forum.arduino.cc/index.php?topic=396450
-char *recvWithEndMarker()
-{
-    int numChars = 20;   // YYYY:MM:DD:hh:mm:ss
-    static char receivedChars[20];
-    boolean newData = false;
-    static byte ndx = 0;
-    char endMarker = '\n';
-    char rc;
-
-    while (newData == false)
-    {
-        while (Serial.available() > 0)
-        {
-            rc = Serial.read();
-
-            if (rc != endMarker)
-            {
-                receivedChars[ndx] = rc;
-                ndx++;
-                if (ndx >= numChars)
-                {
-                    ndx = numChars - 1;
-                }
-            }
-            else
-            {
-                receivedChars[ndx] = '\0'; // terminate the string
-                ndx = 0;
-                newData = true;
-                break;
-            }
-        }
-        delay(100);
-    }
-    return receivedChars;
-}
 
 
 /**
@@ -313,7 +252,7 @@ void setup()
     matrix.begin();
     matrix.setTextWrap(false);
     matrix.setBrightness(40);
-    matrix.setTextColor(_colors[COLOR_MESSAGE]);
+    matrix.setTextColor(_colors[COLOR_RED]);
 
     // setup the button event loops
     mode_button = new DebounceEvent(MODE_BUTTON_PIN, event_callback,
@@ -353,7 +292,7 @@ void setup()
         {
             if ((now_date = set_time()) == 0)   // error: failed to set RTC time!
             {
-                state = STATE_MESSAGE;
+                _state = STATE_MESSAGE;
                 print_scroll("Error: RTC set time!");
 #if DEBUG_ON
                 Serial.println("RTC is stopped. Set time failed!");
@@ -362,7 +301,7 @@ void setup()
         }
         else
         {
-            state = STATE_MESSAGE;
+            _state = STATE_MESSAGE;
             print_scroll("Error: RTC circuit!");
 #if DEBUG_ON
             Serial.println("RTC read error!  Please check the circuitry.");
@@ -391,7 +330,7 @@ void setup()
 #endif
 
     // initialize state machine
-    state = STATE_COUNTDOWN;
+    _state = STATE_COUNTDOWN;
 
     // IntervalTimer takes a callback function, and a number of microseconds
     // timer_interval is set to run the callback once per second
@@ -422,13 +361,13 @@ void loop()
     {
         update_timer_event = false;
         event = EVENT_TIMER;
-        state = state_machine(state, event);
+        _state = state_machine(_state, event);
     }
     else if (update_scroll_event)
     {
         update_scroll_event = false;
         event = EVENT_SCROLL;
-        state = state_machine(state, event);
+        _state = state_machine(_state, event);
     }
 
     // Check if a new countdown time is needed?
@@ -474,38 +413,6 @@ void compute_elapsedTime(TimeInterval_t &time_interval, uint32_t countdown_time)
     time_interval.days = countdown_time;
 }
 
-// standard pixel size for Adafruit_GFX is 6px per character
-static const int _pixel_size = 6;
-static int _x = matrix.width();
-static int _message_color = 0;
-
-/**
- * Display a scrolling message
- */
-void print_scroll(const char *str)
-{
-    matrix.fillScreen(0);
-    matrix.setCursor(_x, 0);
-    matrix.print(str);
-    /**
-     * setCursor() sets the pixel position from where to render the text
-     * offset is calculated based on font width, screen width, and text length
-     * when offset is reached, pass is complete & color is updated
-    **/
-    int offset = (strlen(str) * _pixel_size) + _x;
-    if (--_x < -offset)
-    {
-        // The message has scrolled off the screen, so reset variables
-        _x = matrix.width();
-        // Switch to the next color in our list of colors
-        if (++_message_color >= COLOR_MAX)
-        {
-            _message_color = 0;
-        }
-        matrix.setTextColor(_colors[_message_color]);
-    }
-    matrix.show();
-}
 
 /**
  * Responsible for updating the state of the system
@@ -523,7 +430,7 @@ static State_t _get_next_state(State_t state)
     return (State_t)next_state;
 }
 
-static State_t _handle_state_init(Event_t event)
+static State_t _handle_state_init(Event_t event, bool first_time)
 {
     State_t next_state = STATE_COUNTDOWN;
 
@@ -532,7 +439,7 @@ static State_t _handle_state_init(Event_t event)
     return next_state;
 }
 
-static State_t _handle_state_countdown(Event_t event)
+static State_t _handle_state_countdown(Event_t event, bool first_time)
 {
     State_t next_state = STATE_COUNTDOWN;
     TimeInterval_t time_interval;
@@ -559,8 +466,12 @@ static State_t _handle_state_countdown(Event_t event)
 #endif
             break;
         case EVENT_MODE:
-            // Advance to the next state
-            next_state = _get_next_state(next_state);
+            // Go to the message display
+            next_state = STATE_MESSAGE;
+            break;
+        case EVENT_INCREMENT:
+            // Go to the date display
+            next_state = STATE_DATE;
             break;
         default:
             // Ignore all other events
@@ -570,7 +481,99 @@ static State_t _handle_state_countdown(Event_t event)
     return next_state;
 }
 
-static State_t _handle_state_message(Event_t event)
+/**
+ *  Print the current date on the display
+ */
+static State_t _handle_state_date(Event_t event, bool first_time)
+{
+    State_t next_state = STATE_DATE;
+    static unsigned timeout;    // Static so it is saved between runs
+    CalendarTime_t calendar_time;
+
+    if (first_time)
+    {
+        // Set our timeout
+        timeout = 10 /* seconds */;
+
+        print_date(calendar_time);
+    }
+
+    switch (event)
+    {
+        case EVENT_TIMER:
+            timeout = timeout - 1;
+            if (timeout == 0)
+            {
+                next_state = STATE_TIME;
+            }
+            break;
+        case EVENT_MODE:
+            // Go to the message display
+            next_state = STATE_MESSAGE;
+            break;
+        case EVENT_DECREMENT:
+            // Go back to the countdown display
+            next_state = STATE_COUNTDOWN;
+            break;
+        case EVENT_INCREMENT:
+            // Go to the date display
+            next_state = STATE_TIME;
+            break;
+        default:
+            // Ignore all other events
+            break;
+    }
+
+    return next_state;
+}
+
+/**
+ *  Print the current time on the display
+ */
+static State_t _handle_state_time(Event_t event, bool first_time)
+{
+    State_t next_state = STATE_TIME;
+    static unsigned timeout;    // Static so it is saved between runs
+    CalendarTime_t calendar_time;
+
+    if (first_time)
+    {
+        // Set our timeout
+        timeout = 10 /* seconds */;
+
+        print_time(calendar_time);
+    }
+
+    switch (event)
+    {
+        case EVENT_TIMER:
+            timeout = timeout - 1;
+            if (timeout == 0)
+            {
+                next_state = STATE_DATE;
+            }
+            break;
+        case EVENT_MODE:
+            // Go to the message display
+            next_state = STATE_MESSAGE;
+            break;
+        case EVENT_DECREMENT:
+            // Go back to the countdown display
+            next_state = STATE_COUNTDOWN;
+            break;
+        case EVENT_INCREMENT:
+            // Go to the date display
+            next_state = STATE_DATE;
+            break;
+        default:
+            // Ignore all other events
+            break;
+    }
+
+    return next_state;
+}
+
+static State_t _handle_state_message(Event_t event, bool first_time)
 {
     State_t next_state = STATE_MESSAGE;
 
@@ -599,19 +602,35 @@ static State_t _handle_state_message(Event_t event)
 State_t state_machine(State_t current_state, Event_t event)
 {
     State_t next_state = current_state;
+    bool first_time = false;
+    static State_t last_state = STATE_INIT;
+
+    // Set a flag if this is the first time in this new state
+    if (current_state != last_state)
+    {
+        first_time = true;
+    }
 
     switch (current_state)
     {
         case STATE_INIT:
-            next_state = _handle_state_init(event);
+            next_state = _handle_state_init(event, first_time);
             break;
 
         case STATE_COUNTDOWN:
-            next_state = _handle_state_countdown(event);
+            next_state = _handle_state_countdown(event, first_time);
+            break;
+
+        case STATE_DATE:
+            next_state = _handle_state_date(event, first_time);
+            break;
+
+        case STATE_TIME:
+            next_state = _handle_state_time(event, first_time);
             break;
 
         case STATE_MESSAGE:
-            next_state = _handle_state_message(event);
+            next_state = _handle_state_message(event, first_time);
             break;
 
         // Unhandled case. Don't know how we got here, just set the default
@@ -620,185 +639,7 @@ State_t state_machine(State_t current_state, Event_t event)
             break;
     }
 
+    last_state = current_state;
+
     return next_state;
-}
-
-
-/****************************************************************************/
-/************************** CLOCK DISPLAY ROUTINES **************************/
-/****************************************************************************/
-
-#define CHAR_HEIGHT 7
-
-// 4x7 number digit font bitmaps -- used for displaying clockface
-static const byte _number_width = 5;
-static const byte _numbers[][CHAR_HEIGHT]
-{
-  // 0
-  { B11110000,
-    B10010000,
-    B10010000,
-    B10010000,
-    B10010000,
-    B10010000,
-    B11110000 },
-  //1
-  { B00010000,
-    B00010000,
-    B00010000,
-    B00010000,
-    B00010000,
-    B00010000,
-    B00010000 },
-  // 2
-  { B11110000,
-    B00010000,
-    B00010000,
-    B11110000,
-    B10000000,
-    B10000000,
-    B11110000 },
-  // 3
-  { B11110000,
-    B00010000,
-    B00010000,
-    B11110000,
-    B00010000,
-    B00010000,
-    B11110000 },
-  // 4
-  { B10010000,
-    B10010000,
-    B10010000,
-    B11110000,
-    B00010000,
-    B00010000,
-    B00010000, },
-  // 5
-  {
-    B11110000,
-    B10000000,
-    B10000000,
-    B11110000,
-    B00010000,
-    B00010000,
-    B11110000, },
-  // 6
-  { B11110000,
-    B10000000,
-    B10000000,
-    B11110000,
-    B10010000,
-    B10010000,
-    B11110000, },
-  // 7
-  { B11110000,
-    B00010000,
-    B00010000,
-    B00010000,
-    B00010000,
-    B00010000,
-    B00010000, },
-  // 8
-  { B11110000,
-    B10010000,
-    B10010000,
-    B11110000,
-    B10010000,
-    B10010000,
-    B11110000, },
-  // 9
-  { B11110000,
-    B10010000,
-    B10010000,
-    B11110000,
-    B00010000,
-    B00010000,
-    B11110000, },
-};
-
-static const byte _colon_width = 2;
-static const byte _colon[] =
-{
-  // : (2 pix wide)
-  B00000000,
-  B10000000,
-  B10000000,
-  B00000000,
-  B10000000,
-  B10000000,
-  B00000000,
-};
-
-/**
- *  Static variable to track the current display cursor position.
- */
-static int _cursor = 0;
-
-/**
- *  Clear the screen. Does not call matrix.show().
- */
-void clear_screen(void)
-{
-  matrix.clear();
-  _cursor = 0;
-}
-
-/**
- *  Print a single digit on the display, at the cursor location, in the
- *  given color. Does not call matrix.show().
- */
-void print_digit(unsigned i, uint16_t color)
-{
-  if (i > 10)
-  {
-    // Invalid data, nothing to do...
-    return;
-  }
-
-  matrix.fillRect(_cursor, 0, _cursor + _number_width, CHAR_HEIGHT, 0);
-  matrix.drawBitmap(_cursor, 0, _numbers[i], _number_width, CHAR_HEIGHT, color);
-  _cursor += _number_width;
-}
-
-/**
- *  Print a colon on the display, at the cursor location, in the given color.
- *  Does not call matrix.show().
- */
-void print_colon(uint16_t color)
-{
-  matrix.fillRect(_cursor, 0, _cursor + _colon_width, CHAR_HEIGHT, 0);
-  matrix.drawBitmap(_cursor, 0, _colon, _colon_width, CHAR_HEIGHT, color);
-  _cursor += _colon_width;
-}
-
-/**
- *  Print a two-digit number on the display, at the cursor location,
- *  in the given color. Does not call matrix.show().
- */
-void print_num(unsigned i, uint16_t color)
-{
-  uint8_t temp_digit;
-
-  temp_digit = i % 10;
-  i = i / 10;
-  print_digit(i % 10, color);
-  print_digit(temp_digit, color);
-}
-
-/**
- *  Print the given time on the display
- */
-void print_time_interval(TimeInterval_t &time_interval)
-{
-    // Display the time interval
-    clear_screen();
-    print_num(time_interval.days, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(time_interval.hours, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(time_interval.minutes, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(time_interval.seconds, _colors[COLOR_DIGITS]);
-    matrix.show();
 }
