@@ -58,8 +58,8 @@ typedef struct {
     const char *description;
 } CalendarTime_t;
 
-static const CalendarTime_t _now_date = { 2019, 10, 5, 00, 00, 00 };
-static const CalendarTime_t _kickoff_date = { 2020, 1, 4, 7, 0, 0 };
+static const CalendarTime_t _now_date = { 2019, 10, 5, 00, 00, 00, "now" };
+static const CalendarTime_t _kickoff_date = { 2020, 1, 4, 7, 0, 0, "kickoff" };
 
 /**
  *  List of events to count-down to. They must be sorted in ascending order.
@@ -73,6 +73,9 @@ static const CalendarTime_t _important_times[] = {
     { 2020,  4,  1,  9,  0,  0, "Districts" },          // District Champs
     { 2020,  4, 14, 12,  0,  0, "Worlds" },             // Worlds
 };
+
+static time_t _target_time;
+static unsigned _target_index;
 
 
 /**
@@ -95,12 +98,12 @@ typedef enum {
 static const uint16_t _colors[] = {
     [COLOR_COLON] = SPARTRONICS_BLUE,
     [COLOR_DIGITS] = SPARTRONICS_YELLOW,
-    [COLOR_RED] = Adafruit_NeoMatrix::Color(255, 0, 0),
-    [COLOR_ORANGE] = Adafruit_NeoMatrix::Color(255, 255, 0),
+    [COLOR_RED] = Adafruit_NeoMatrix::Color(128, 0, 0),
+    [COLOR_ORANGE] = Adafruit_NeoMatrix::Color(128, 128, 0),
     [COLOR_YELLOW] = SPARTRONICS_YELLOW,
-    [COLOR_GREEN] = Adafruit_NeoMatrix::Color(0, 255, 0),
+    [COLOR_GREEN] = Adafruit_NeoMatrix::Color(0, 128, 0),
     [COLOR_BLUE] = SPARTRONICS_BLUE,
-    [COLOR_PURPLE] = Adafruit_NeoMatrix::Color(0, 255, 255),
+    [COLOR_PURPLE] = Adafruit_NeoMatrix::Color(0, 128, 128),
 };
 
 /**
@@ -137,7 +140,13 @@ typedef enum
 } Event_t;
 
 State_t _state;  // tracks the state of the display
-static const char * const _message = { "Spartronics: 4915. Woot!" };
+
+static const char *_messages[] = {
+    "Spartronics: 4915. Woot!",
+    "Robots don't quit!",
+    // Add new messages above this line
+    NULL
+};
 
 /**
  *  Variable to track the time interval remaining until the event being tracked
@@ -188,13 +197,15 @@ void scroll_callback()
  *  lines are arranged in rows as zig-zag order. The shield uses 800Khz (v2)
  *  pixels that expect GRB color data
  */
-#define CONTROL_PIN 17      // pin for the NeoMatrix
+#define CONTROL_PIN     17
+#define MATRIX_WIDTH    45
+#define MATRIX_HEIGHT   7
 
-Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(45, 7,   // matrix width & height
+Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT,
   CONTROL_PIN,                                  // pin number
-  NEO_MATRIX_TOP     + NEO_MATRIX_LEFT +        // matrix layout, flags added as needed
-  NEO_MATRIX_ROWS    + NEO_MATRIX_ZIGZAG,
-  NEO_GRB            + NEO_KHZ800);             // pixel type flags, added as needed
+  NEO_MATRIX_TOP     + NEO_MATRIX_LEFT +        // matrix layout
+  NEO_MATRIX_ROWS    + NEO_MATRIX_ZIGZAG,       // flags describe our panel
+  NEO_GRB            + NEO_KHZ800);             // pixel type flags
 
 
 /**
@@ -251,7 +262,7 @@ void setup()
     // setup matrix display
     matrix.begin();
     matrix.setTextWrap(false);
-    matrix.setBrightness(40);
+    matrix.setBrightness(100);
     matrix.setTextColor(_colors[COLOR_RED]);
 
     // setup the button event loops
@@ -266,7 +277,6 @@ void setup()
      * If so, force time setting.
      */
     bool force_set = (digitalRead(DEC_BUTTON_PIN) == LOW);
-    Serial.print("force_set is: "); Serial.println(force_set);
 
     /*
      * Initialize the countdown_time using bag date and current date
@@ -285,6 +295,10 @@ void setup()
     {
         now_date = set_time();
     }
+    else
+    {
+        now_date = get_time_from_rtc();
+    }
 
     if (!RTC.read(tm))    // no prior date is set
     {
@@ -293,7 +307,7 @@ void setup()
             if ((now_date = set_time()) == 0)   // error: failed to set RTC time!
             {
                 _state = STATE_MESSAGE;
-                print_scroll("Error: RTC set time!");
+                message_print("ERR: RTC");
 #if DEBUG_ON
                 Serial.println("RTC is stopped. Set time failed!");
 #endif
@@ -302,7 +316,7 @@ void setup()
         else
         {
             _state = STATE_MESSAGE;
-            print_scroll("Error: RTC circuit!");
+            message_print("ERR: HW");
 #if DEBUG_ON
             Serial.println("RTC read error!  Please check the circuitry.");
 #endif
@@ -338,6 +352,13 @@ void setup()
             1000 /* ms per second */ * 1000 /* us per ms */);
     // scroll_interval is set to run the callback 10 times per second
     scroll_interval.begin(scroll_callback, 100 /* ms */ * 1000 /* us per ms */);
+
+    if (find_next_target(now()) == 0)
+    {
+        // No target time found!
+        _state = STATE_MESSAGE;
+        message_print("ERR: Target");
+    }
 }
 
 /**
@@ -394,6 +415,29 @@ time_t convert_time(const CalendarTime_t &time)
     return makeTime(tmSet); //convert to time_t
 }
 
+time_t find_next_target(time_t now)
+{
+    time_t target = 0;
+
+    for (unsigned idx=0; idx<NUM_ELEMENTS(_important_times); idx++)
+    {
+        time_t temp;
+        // Convert the time to time_t so we can compare to now
+        temp = convert_time(_important_times[idx]);
+
+        // Compare to 'now'. If temp is in the future, then it is our target
+        if (temp > now)
+        {
+            target = temp;
+            _target_time = target;
+            _target_index = idx;
+            break;
+        }
+    }
+
+    return target;
+}
+
 /**
  *  Break down the provided time interval (in seconds) into clock-style
  *  components of days, hours, minutes and seconds.
@@ -413,28 +457,12 @@ void compute_elapsedTime(TimeInterval_t &time_interval, uint32_t countdown_time)
     time_interval.days = countdown_time;
 }
 
-
-/**
- * Responsible for updating the state of the system
- * See State_t for possible states
- */
-static State_t _get_next_state(State_t state)
-{
-    // we are using casts to ensure we can do enum math
-    int next_state = (int)state + 1;
-    if (next_state >= STATE_MAX)
-    {
-        next_state = 0;
-    }
-
-    return (State_t)next_state;
-}
-
 static State_t _handle_state_init(Event_t event, bool first_time)
 {
     State_t next_state = STATE_COUNTDOWN;
 
     // We can do some initialization code here, if we need to
+    matrix.clear();
 
     return next_state;
 }
@@ -495,6 +523,9 @@ static State_t _handle_state_date(Event_t event, bool first_time)
         // Set our timeout
         timeout = 10 /* seconds */;
 
+        // Get the calendar time
+
+        // Print the date
         print_date(calendar_time);
     }
 
@@ -541,6 +572,9 @@ static State_t _handle_state_time(Event_t event, bool first_time)
         // Set our timeout
         timeout = 10 /* seconds */;
 
+        // Get the calendar time
+
+        // Print the time
         print_time(calendar_time);
     }
 
@@ -577,15 +611,21 @@ static State_t _handle_state_message(Event_t event, bool first_time)
 {
     State_t next_state = STATE_MESSAGE;
 
+    if (first_time)
+    {
+        // Set the message to scroll
+        message_start(_messages[0]);
+    }
+
     switch (event)
     {
         case EVENT_SCROLL:
             // Scroll a message on the display
-            print_scroll(_message);
+            message_scroll();
             break;
         case EVENT_MODE:
             // Advance to the next state
-            next_state = _get_next_state(next_state);
+            next_state = STATE_COUNTDOWN;
             break;
         default:
             // Ignore all other events
