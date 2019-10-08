@@ -1,7 +1,7 @@
 // standard pixel size for Adafruit_GFX is 6px per character
 static const int _pixel_size = 6;
 static int _x = matrix.width();
-static int _message_color = 0;
+static ColorName_t _message_color;
 static bool _message_finished;
 static const char *_message;
 static int _message_width;
@@ -9,11 +9,15 @@ static int _message_width;
 /**
  *  Setup a message to be scrolled
  */
-void message_start(const char *str)
+void message_start(const char *str, ColorName_t color)
 {
     // Save the message string
-    _message = str;
-    _message_width = (strlen(str) * _pixel_size);
+    if (str != NULL)
+    {
+        _message = str;
+        _message_width = (strlen(str) * _pixel_size);
+        _message_color = color;
+    }
     _message_finished = false;
     _x = matrix.width();
 }
@@ -23,15 +27,24 @@ void message_start(const char *str)
  */
 void message_scroll(void)
 {
-    matrix.fillScreen(0);       // Clear the screen
+    if (_message_finished == true)
+    {
+        return;
+    }
+
+    matrix.clear();             // Clear the screen
     matrix.setCursor(_x, 0);    // Set the starting point of the message
+    matrix.setTextColor(_colors[_message_color]);
     matrix.print(_message);     // Store the message at the cursor position
     /**
      * setCursor() sets the pixel position from where to render the text
      * offset is calculated based on font width, screen width, and text length
      * when offset is reached, pass is complete & color is updated
     **/
-    int offset = _message_width - _x;
+    // int offset = _message_width - _x;
+    int offset = _message_width;
+
+    Serial.println(matrix.width());
 
     _x = _x - 1;        // Set the x-axis one pixel to the left
 
@@ -40,15 +53,6 @@ void message_scroll(void)
     {
         // After one time through scrolling the message, set the "done" flag
         _message_finished = true;
-
-        // The message has scrolled off the screen, so reset variables
-        _x = matrix.width();
-        // Switch to the next color in our list of colors
-        if (++_message_color >= COLOR_MAX)
-        {
-            _message_color = COLOR_RED;
-        }
-        matrix.setTextColor(_colors[_message_color]);
     }
 
     matrix.show();              // Display the message as saved

@@ -191,13 +191,13 @@ void print_time_interval(TimeInterval_t &time_interval)
 {
     // Display the time interval
     clear_screen();
-    print_num(time_interval.days, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(time_interval.hours, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(time_interval.minutes, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(time_interval.seconds, _colors[COLOR_DIGITS]);
+    print_num(time_interval.days, _colors[COLOR_YELLOW]);
+    print_colon(_colors[COLOR_BLUE]);
+    print_num(time_interval.hours, _colors[COLOR_YELLOW]);
+    print_colon(_colors[COLOR_BLUE]);
+    print_num(time_interval.minutes, _colors[COLOR_YELLOW]);
+    print_colon(_colors[COLOR_BLUE]);
+    print_num(time_interval.seconds, _colors[COLOR_YELLOW]);
     matrix.show();
 }
 
@@ -212,11 +212,11 @@ void print_time(CalendarTime_t &calendar_time)
     // Offset the time to center it
     _cursor = 6;
 
-    print_num(calendar_time.hour, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(calendar_time.minute, _colors[COLOR_DIGITS]);
-    print_colon(_colors[COLOR_COLON]);
-    print_num(calendar_time.second, _colors[COLOR_DIGITS]);
+    print_num(calendar_time.hour, _colors[COLOR_YELLOW]);
+    print_colon(_colors[COLOR_BLUE]);
+    print_num(calendar_time.minute, _colors[COLOR_YELLOW]);
+    print_colon(_colors[COLOR_BLUE]);
+    print_num(calendar_time.second, _colors[COLOR_YELLOW]);
 
     matrix.show();
 }
@@ -229,11 +229,11 @@ void print_date(CalendarTime_t &calendar_time)
     // Display the date
     clear_screen();
 
-    print_num(calendar_time.year, _colors[COLOR_DIGITS]);
-    print_slash(_colors[COLOR_COLON]);
-    print_num(calendar_time.month, _colors[COLOR_DIGITS]);
-    print_slash(_colors[COLOR_COLON]);
-    print_num(calendar_time.day, _colors[COLOR_DIGITS]);
+    print_num(calendar_time.year, _colors[COLOR_YELLOW]);
+    print_slash(_colors[COLOR_BLUE]);
+    print_num(calendar_time.month, _colors[COLOR_YELLOW]);
+    print_slash(_colors[COLOR_BLUE]);
+    print_num(calendar_time.day, _colors[COLOR_YELLOW]);
 
     matrix.show();
 }
