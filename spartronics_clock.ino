@@ -110,7 +110,6 @@ typedef enum   // at each button mode press, display mode changes accordingly
     STATE_INIT = 0,
     STATE_MESSAGE,
     STATE_COUNTDOWN,
-    STATE_DESCRIBE,
     STATE_DATE,
     STATE_TIME,
     // Add new states above this line
@@ -164,20 +163,9 @@ typedef struct              // parses the countdown_time to its components
  *  and variables to update controls
  */
 IntervalTimer scroll_interval;
-IntervalTimer timer_interval;
 
 bool update_timer_event = false;
 bool update_scroll_event = false;;
-
-void timer_callback()
-{
-    update_timer_event = true;
-    // Compute new time value here, so it's done regardless of state
-    if (_countdown_time != 0)
-    {
-        _countdown_time = _countdown_time - 1;
-    }
-}
 
 void scroll_callback()
 {
@@ -332,9 +320,6 @@ void setup()
     _state = STATE_INIT;
 
     // IntervalTimer takes a callback function, and a number of microseconds
-    // timer_interval is set to run the callback once per second
-    timer_interval.begin(timer_callback,
-            1000 /* ms per second */ * 1000 /* us per ms */);
     // scroll_interval is set to run the callback 10 times per second
     scroll_interval.begin(scroll_callback, 100 /* ms */ * 1000 /* us per ms */);
 
@@ -505,48 +490,9 @@ static State_t _handle_state_countdown(Event_t event, bool first_time)
             next_state = STATE_DATE;
             break;
         case EVENT_DECREMENT:
-            // Go to the date display
-            next_state = STATE_DESCRIBE;
-            break;
-        default:
-            // Ignore all other events
-            break;
-    }
-
-    return next_state;
-}
-
-/**
- *  Print the current date on the display
- */
-static State_t _handle_state_describe(Event_t event, bool first_time)
-{
-    State_t next_state = STATE_DESCRIBE;
-    static unsigned timeout;    // Static so it is saved between runs
-
-    if (first_time)
-    {
-        // Set our timeout
-        timeout = 10 /* seconds */;
-
-        // Print the date
-        message_print(_target_description);
-    }
-
-    switch (event)
-    {
-        case EVENT_TIMER:
-            timeout = timeout - 1;
-            if (timeout == 0)
-            {
-                next_state = STATE_COUNTDOWN;
-            }
-            break;
-        case EVENT_INCREMENT:
-        case EVENT_MODE:
-        case EVENT_DECREMENT:
-            // Go back to the countdown display
-            next_state = STATE_COUNTDOWN;
+            // Display the description of this event
+            message_start(_target_description, COLOR_GREEN);
+            next_state = STATE_MESSAGE;
             break;
         default:
             // Ignore all other events
@@ -624,11 +570,10 @@ static State_t _handle_state_time(Event_t event, bool first_time)
     State_t next_state = STATE_TIME;
     static unsigned timeout;    // Static so it is saved between runs
     CalendarTime_t calendar_time;
+    tmElements_t tm;
 
     if (first_time)
     {
-        tmElements_t tm;
-
         // Set our timeout
         timeout = 10 /* seconds */;
 
@@ -655,6 +600,16 @@ static State_t _handle_state_time(Event_t event, bool first_time)
             }
 
             // TODO: Update display each second
+            breakTime(now(), tm);
+            calendar_time.year = tmYearToCalendar(tm.Year);
+            calendar_time.month = tm.Month;
+            calendar_time.day = tm.Day;
+            calendar_time.hour = tm.Hour;
+            calendar_time.minute = tm.Minute;
+            calendar_time.second = tm.Second;
+
+            // Print the time
+            print_time(calendar_time);
 
             break;
         case EVENT_MODE:
@@ -701,6 +656,8 @@ static State_t _handle_state_message(Event_t event, bool first_time)
             }
             break;
         case EVENT_MODE:
+        case EVENT_INCREMENT:
+        case EVENT_DECREMENT:
             // Advance to the next state
             next_state = STATE_COUNTDOWN;
             break;
@@ -736,10 +693,6 @@ State_t state_machine(State_t current_state, Event_t event)
 
         case STATE_COUNTDOWN:
             next_state = _handle_state_countdown(event, first_time);
-            break;
-
-        case STATE_DESCRIBE:
-            next_state = _handle_state_describe(event, first_time);
             break;
 
         case STATE_DATE:
