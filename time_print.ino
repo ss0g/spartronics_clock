@@ -209,6 +209,9 @@ void print_time(CalendarTime_t &calendar_time)
     // Display the time
     clear_screen();
 
+    // Offset the time to center it
+    _cursor = 6;
+
     print_num(calendar_time.hour, _colors[COLOR_DIGITS]);
     print_colon(_colors[COLOR_COLON]);
     print_num(calendar_time.minute, _colors[COLOR_DIGITS]);
