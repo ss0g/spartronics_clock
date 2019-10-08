@@ -15,8 +15,6 @@ bool save_time_to_rtc(void)
     return RTC.set(now());
 }
 
-
-
 void print2digits(int number)
 {
     if (number >= 0 && number < 10)
@@ -36,8 +34,7 @@ time_t set_time()
     char time_string[32];
 
     // prompt user for time and set it on the board
-    _state = STATE_MESSAGE;
-    message_print("SET TIME");
+    message_print("SET TIME", COLOR_RED);
 
     // read & parse time from the user
     Serial.println("Make sure Serial Terminal is set to Newline");
@@ -71,6 +68,8 @@ time_t set_time()
     Serial.print(" characters: ");
     Serial.println(time_string);
 
+    time_t t;
+
     CalendarTime_t set_time;
     if (sscanf(time_string, "%04u:%02u:%02u:%02u:%02u:%02u",
                 &set_time.year, &set_time.month, &set_time.day,
@@ -79,9 +78,9 @@ time_t set_time()
         Serial.println("Error: problem parsing YYYY:MM:DD:hh:mm:ss");
         return 0;
     }
+    t = convert_time(set_time);
 
     // set RTC time
-    time_t t = convert_time(set_time);
     setTime(t);                 // Set the internal clock
     if (save_time_to_rtc() != true)
     {
@@ -108,6 +107,8 @@ size_t get_string_from_serial(char *the_string, size_t string_size)
     // Save one byte for the string terminator
     string_size--;
 
+    time_t timeout = now() + 30;
+
     while (!done)
     {
         if (Serial.available() > 0)
@@ -124,6 +125,11 @@ size_t get_string_from_serial(char *the_string, size_t string_size)
                 // We found the end-of-line
                 done = true;
             }
+        }
+
+        if (now() > timeout)
+        {
+            break;
         }
     }
 

@@ -112,6 +112,7 @@ typedef enum   // at each button mode press, display mode changes accordingly
     STATE_COUNTDOWN,
     STATE_DATE,
     STATE_TIME,
+    STATE_SET_TIME,
     // Add new states above this line
     STATE_MAX
 } State_t;
@@ -124,6 +125,7 @@ typedef enum
 {
     EVENT_NULL = 0,     // no event
     EVENT_MODE,
+    EVENT_SET,
     EVENT_INCREMENT,
     EVENT_DECREMENT,
     EVENT_TIMER,
@@ -206,9 +208,9 @@ DebounceEvent *inc_button;
 DebounceEvent *dec_button;
 
 void event_callback(uint8_t pin, uint8_t event, uint8_t count, uint16_t length) {
-    Event_t _event = EVENT_NULL;
+    Event_t state_event = EVENT_NULL;
 
-    if (event != EVENT_PRESSED)
+    if (event != EVENT_RELEASED)
     {
         return;
     }
@@ -216,29 +218,44 @@ void event_callback(uint8_t pin, uint8_t event, uint8_t count, uint16_t length) 
     switch (pin)
     {
         case MODE_BUTTON_PIN:
-            _event = EVENT_MODE;
+            if (count == 1)
+            {
+                state_event = EVENT_MODE;
+            }
+            else if (count == 2)
+            {
+                state_event = EVENT_SET;
+            }
             break;
         case INC_BUTTON_PIN:
-            _event = EVENT_INCREMENT;
+            if (count == 1)
+            {
+                state_event = EVENT_INCREMENT;
+            }
             break;
         case DEC_BUTTON_PIN:
-            _event = EVENT_DECREMENT;
+            if (count == 1)
+            {
+                state_event = EVENT_DECREMENT;
+            }
             break;
         default:
             return;
     }
-    // update the state machine
-    _state = state_machine(_state, _event);
+
+    if (state_event != EVENT_NULL)
+    {
+        // update the state machine
+        _state = state_machine(_state, state_event);
+    }
 }
-
-
-
 
 /**
  * setup the display, matrix, and button callbacks
  **/
 void setup()
 {
+    // Setup the debug serial output
     Serial.begin(115200);
 
     // setup matrix display
@@ -255,66 +272,8 @@ void setup()
     dec_button = new DebounceEvent(DEC_BUTTON_PIN, event_callback,
             BUTTON_PUSHBUTTON | BUTTON_DEFAULT_HIGH | BUTTON_SET_PULLUP);
 
-    /* Check if the DEC_BUTTON_PIN is held low (pressed) while we boot up.
-     * If so, force time setting.
-     */
-    bool force_set = (digitalRead(DEC_BUTTON_PIN) == LOW);
-
-    /*
-     * Initialize the countdown_time using bag date and current date
-     * for countdown_time
-     *   - via DS3231 RTC, read current time if available. If not,
-     *     set current time using compiler time
-     *   - bag date is set in the code
-     * Use str format for creating date
-     *     https://forum.arduino.cc/index.php?topic=465881.0
-     *   - YYYY, MM, DD, HH, MM, SS
-     */
-    time_t now_date = 0;
-    tmElements_t tm;
-
-    if (force_set)
-    {
-        now_date = set_time();
-    }
-    else
-    {
-        now_date = get_time_from_rtc();
-    }
-
-    if (!RTC.read(tm))    // no prior date is set
-    {
-        if (RTC.chipPresent())
-        {
-            if ((now_date = set_time()) == 0)   // error: failed to set RTC time!
-            {
-                message_start("ERR: RTC", COLOR_RED);
-                _state = STATE_MESSAGE;
-#if DEBUG_ON
-                Serial.println("RTC is stopped. Set time failed!");
-#endif
-            }
-        }
-        else
-        {
-            message_start("ERR: HW", COLOR_RED);
-            _state = STATE_MESSAGE;
-#if DEBUG_ON
-            Serial.println("RTC read error!  Please check the circuitry.");
-#endif
-        }
-    }
-    else
-    {
-        // Successfully got the time from the RTC!
-        now_date = makeTime(tm);
-    }
-
-
-
-
-
-
+    // Set the system clock from the RTC
+    get_time_from_rtc();
 
     // initialize state machine
     _state = STATE_INIT;
@@ -322,7 +281,6 @@ void setup()
     // IntervalTimer takes a callback function, and a number of microseconds
     // scroll_interval is set to run the callback 10 times per second
     scroll_interval.begin(scroll_callback, 100 /* ms */ * 1000 /* us per ms */);
-
 }
 
 /**
@@ -626,10 +584,27 @@ static State_t _handle_state_time(Event_t event, bool first_time)
             // Go to the date display
             next_state = STATE_DATE;
             break;
+        case EVENT_SET:
+            // Set the time
+            next_state = STATE_SET_TIME;
+            break;
         default:
             // Ignore all other events
             break;
     }
+
+    return next_state;
+}
+
+/**
+ *  Set the system time
+ */
+static State_t _handle_state_set_time(Event_t event, bool first_time)
+{
+    State_t next_state = STATE_TIME;
+
+    // Call the set_time() function to set the clock
+    set_time();
 
     return next_state;
 }
@@ -701,6 +676,10 @@ State_t state_machine(State_t current_state, Event_t event)
 
         case STATE_TIME:
             next_state = _handle_state_time(event, first_time);
+            break;
+
+        case STATE_SET_TIME:
+            next_state = _handle_state_set_time(event, first_time);
             break;
 
         case STATE_MESSAGE:

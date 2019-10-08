@@ -44,8 +44,6 @@ void message_scroll(void)
     // int offset = _message_width - _x;
     int offset = _message_width;
 
-    Serial.println(matrix.width());
-
     _x = _x - 1;        // Set the x-axis one pixel to the left
 
     // if (_x < (0 - _message_width))
@@ -69,10 +67,11 @@ bool message_done(void)
 /**
  *  Print a static message on the display (not scrolled)
  */
-void message_print(const char *str)
+void message_print(const char *str, ColorName_t color)
 {
     matrix.clear();
-    matrix.setCursor(0, 0);     /* Is this correct? or matrix.width()? */
+    matrix.setCursor(0, 0);
+    matrix.setTextColor(_colors[color]);
     matrix.print(str);
     matrix.show();
 }
