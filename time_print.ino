@@ -229,11 +229,12 @@ void print_date(CalendarTime_t &calendar_time)
     // Display the date
     clear_screen();
 
-    print_num(calendar_time.year, _colors[COLOR_YELLOW]);
-    print_slash(_colors[COLOR_BLUE]);
+    // Print date in format MM/DD/YY
     print_num(calendar_time.month, _colors[COLOR_YELLOW]);
     print_slash(_colors[COLOR_BLUE]);
     print_num(calendar_time.day, _colors[COLOR_YELLOW]);
+    print_slash(_colors[COLOR_BLUE]);
+    print_num(calendar_time.year, _colors[COLOR_YELLOW]);
 
     matrix.show();
 }
