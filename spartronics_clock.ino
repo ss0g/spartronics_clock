@@ -45,6 +45,28 @@
 #define SPARTRONICS_YELLOW Adafruit_NeoMatrix::Color(90, 90, 0)
 #define SPARTRONICS_BLUE Adafruit_NeoMatrix::Color(0, 50, 170)
 
+// Fun messages to print
+static const char *_messages[] = {
+    "Spartronics 4915 - Woot!",
+    "Gracious Professionalism",
+    "Everybody is in Marketing!",
+    "Robots don't quit!",
+    "Clio was here...",
+    "Mentors Rock!",
+    "Water game confirmed!",
+    "Are we all having PHUN?",
+    "Did you do your survey?",
+    "ROCKIN' ROBOT!",
+    "ENABLING!",
+    "FIRST RISE: The Force is Building",
+    "ATLaS",
+    "GAEA",
+    "ARES",
+    "HELIOS",
+    "THEMIS",
+    "CHAOS",
+};
+
 /**
  *  Structure to hold time values in their human-readable components
  */
@@ -109,6 +131,8 @@ typedef enum   // at each button mode press, display mode changes accordingly
 {
     STATE_INIT = 0,
     STATE_MESSAGE,
+    STATE_MESSAGE_ONCE,
+    STATE_MESSAGE_REPEAT,
     STATE_COUNTDOWN,
     STATE_DATE,
     STATE_TIME,
@@ -135,13 +159,6 @@ typedef enum
 } Event_t;
 
 State_t _state;  // tracks the state of the display
-
-static const char *_messages[] = {
-    "Spartronics: 4915. Woot!",
-    "Robots don't quit!",
-    "Clio was here",
-    "Mentors Rock!",
-};
 
 /**
  *  Variable to track the time interval remaining until the event being tracked
@@ -398,8 +415,8 @@ static State_t _handle_state_init(Event_t event, bool first_time)
     if (find_next_target(now()) == 0)
     {
         // No target time found!
-        message_start("ERR: Target", COLOR_RED);
-        next_state = STATE_MESSAGE;
+        message_start("ERR: NO COUNTDOWN DATES!", COLOR_RED);
+        next_state = STATE_MESSAGE_ONCE;
     }
 
     return next_state;
@@ -407,7 +424,7 @@ static State_t _handle_state_init(Event_t event, bool first_time)
 
 static State_t _handle_state_countdown(Event_t event, bool first_time)
 {
-    State_t next_state = STATE_COUNTDOWN;
+    State_t next_state = _state;
     TimeInterval_t time_interval;
     time_t time_now = now();
     uint32_t countdown_time = 0;
@@ -418,29 +435,42 @@ static State_t _handle_state_countdown(Event_t event, bool first_time)
             if (_target_time >= time_now)
             {
                 countdown_time = _target_time - time_now;
-            }
-            // Print the remaining time interval on the display
-            compute_elapsedTime(time_interval, countdown_time);
+                // Print the remaining time interval on the display
+                compute_elapsedTime(time_interval, countdown_time);
 
-            // display the time value
-            print_time_interval(time_interval);
+                // display the time value
+                print_time_interval(time_interval);
 #if DEBUG_ON
-            Serial.print("---_countdown_time: ");
-            Serial.println(countdown_time);
-            Serial.print("---display time: ");
-            Serial.print(time_interval.days);
-            Serial.print(":");
-            Serial.print(time_interval.hours);
-            Serial.print(":");
-            Serial.print(time_interval.minutes);
-            Serial.print(":");
-            Serial.println(time_interval.seconds);
+                Serial.print("---_countdown_time: ");
+                Serial.println(countdown_time);
+                Serial.print("---display time: ");
+                Serial.print(time_interval.days);
+                Serial.print(":");
+                Serial.print(time_interval.hours);
+                Serial.print(":");
+                Serial.print(time_interval.minutes);
+                Serial.print(":");
+                Serial.println(time_interval.seconds);
 #endif
+
+                if (time_in_state() > (15 /* minutes */ * 60 /* seconds */))
+                {
+                    // Print a random message
+                    message_start(_messages[random(NUM_ELEMENTS(_messages))],
+                            (ColorName_t)random(NUM_ELEMENTS(_colors)));
+                    next_state = STATE_MESSAGE_ONCE;
+                }
+            }
+            else
+            {
+                // No target found, so go to date/time display
+                next_state = STATE_DATE;
+            }
             break;
         case EVENT_MODE:
             // Go to the message display
             message_start(_messages[random(NUM_ELEMENTS(_messages))],
-                    (ColorName_t)random(COLOR_MAX));
+                    (ColorName_t)random(NUM_ELEMENTS(_colors)));
             next_state = STATE_MESSAGE;
             break;
         case EVENT_INCREMENT:
@@ -450,7 +480,7 @@ static State_t _handle_state_countdown(Event_t event, bool first_time)
         case EVENT_DECREMENT:
             // Display the description of this event
             message_start(_target_description, COLOR_GREEN);
-            next_state = STATE_MESSAGE;
+            next_state = STATE_MESSAGE_ONCE;
             break;
         default:
             // Ignore all other events
@@ -465,16 +495,12 @@ static State_t _handle_state_countdown(Event_t event, bool first_time)
  */
 static State_t _handle_state_date(Event_t event, bool first_time)
 {
-    State_t next_state = STATE_DATE;
-    static unsigned timeout;    // Static so it is saved between runs
+    State_t next_state = _state;
     CalendarTime_t calendar_time;
 
     if (first_time)
     {
         tmElements_t tm;
-
-        // Set our timeout
-        timeout = 10 /* seconds */;
 
         // Get the calendar time
         breakTime(now(), tm);
@@ -492,10 +518,9 @@ static State_t _handle_state_date(Event_t event, bool first_time)
     switch (event)
     {
         case EVENT_TIMER:
-            timeout = timeout - 1;
-            if (timeout == 0)
+            if (time_in_state() > 10 /* seconds */)
             {
-                next_state = STATE_TIME;
+                next_state = STATE_DATE;
             }
             break;
         case EVENT_MODE:
@@ -525,16 +550,12 @@ static State_t _handle_state_date(Event_t event, bool first_time)
  */
 static State_t _handle_state_time(Event_t event, bool first_time)
 {
-    State_t next_state = STATE_TIME;
-    static unsigned timeout;    // Static so it is saved between runs
+    State_t next_state = _state;
     CalendarTime_t calendar_time;
     tmElements_t tm;
 
     if (first_time)
     {
-        // Set our timeout
-        timeout = 10 /* seconds */;
-
         // Get the calendar time
         breakTime(now(), tm);
         calendar_time.year = tmYearToCalendar(tm.Year);
@@ -551,12 +572,6 @@ static State_t _handle_state_time(Event_t event, bool first_time)
     switch (event)
     {
         case EVENT_TIMER:
-            timeout = timeout - 1;
-            if (timeout == 0)
-            {
-                next_state = STATE_DATE;
-            }
-
             // TODO: Update display each second
             breakTime(now(), tm);
             calendar_time.year = tmYearToCalendar(tm.Year);
@@ -569,6 +584,10 @@ static State_t _handle_state_time(Event_t event, bool first_time)
             // Print the time
             print_time(calendar_time);
 
+            if (time_in_state() > 10 /* seconds */)
+            {
+                next_state = STATE_DATE;
+            }
             break;
         case EVENT_MODE:
             // Go to the message display
@@ -611,7 +630,7 @@ static State_t _handle_state_set_time(Event_t event, bool first_time)
 
 static State_t _handle_state_message(Event_t event, bool first_time)
 {
-    State_t next_state = STATE_MESSAGE;
+    State_t next_state = _state;
 
     if (first_time)
     {
@@ -626,8 +645,21 @@ static State_t _handle_state_message(Event_t event, bool first_time)
             message_scroll();
             if (message_done())
             {
-                message_start(_messages[random(NUM_ELEMENTS(_messages))],
-                        (ColorName_t)random(COLOR_MAX));
+                switch (next_state)
+                {
+                    case STATE_MESSAGE:
+                        message_start(
+                                _messages[random(NUM_ELEMENTS(_messages))],
+                                (ColorName_t)random(COLOR_MAX));
+                        break;
+                    case STATE_MESSAGE_REPEAT:
+                        message_start(NULL, COLOR_RED);
+                        break;
+                    case STATE_MESSAGE_ONCE:
+                    default:
+                        next_state = STATE_COUNTDOWN;
+                        break;
+                }
             }
             break;
         case EVENT_MODE:
@@ -645,6 +677,22 @@ static State_t _handle_state_message(Event_t event, bool first_time)
 }
 
 /**
+ *  Allow a state handler to know how long the state has been running
+ */
+static time_t _state_entry_time = 0;
+static uint32_t time_in_state(void)
+{
+    uint32_t seconds = 0;
+
+    if (now() > _state_entry_time)
+    {
+        seconds = now() - _state_entry_time;
+    }
+
+    return seconds;
+}
+
+/**
  * State machine to control the display
  * Note: events triggered by the buttons and timer_ticks
  */
@@ -658,6 +706,7 @@ State_t state_machine(State_t current_state, Event_t event)
     if (current_state != last_state)
     {
         first_time = true;
+        _state_entry_time = now();
     }
 
     switch (current_state)
@@ -683,6 +732,8 @@ State_t state_machine(State_t current_state, Event_t event)
             break;
 
         case STATE_MESSAGE:
+        case STATE_MESSAGE_ONCE:
+        case STATE_MESSAGE_REPEAT:
             next_state = _handle_state_message(event, first_time);
             break;
 
