@@ -17,7 +17,18 @@ Scrolling message is supported which is set via the mode button
 
 ## Usage
 - 3 buttons control the behavior of the display
-    - button 1: specifies mode for reprogramming the display, i.e. display clock or scrolling message. Mode button circulates: display message, display countdown clock
-    - button 2 & 3: Unused: button push will generate events in code, however no state change will occur.
+	- Mode - Change between countdown and messages
+	- Inc - Change between countdown and date/time
+	- Dec - Display the name of the next event
 
-Note: holding the DEC button down during boot will force set the datetime via user input
+- To set the clock (ie, adjusting for daylight savings)
+	- Connect a computer to the USB port of the clock module
+	- Load the Arduino IDE, and select the port where the Teensy is connected (**Tools -> Port**)
+	- Start the Arduino serial monitor (**Tools -> Serial Monitor**), and set data rate to **115200bps**
+	- On clock module, change mode to time display by pressing **Inc** twice
+	- While the time is displayed, click **Mode** twice (quickly)
+	- The words **SET TIME** should be displayed in red on the clock
+	- Using the serial terminal, follow the prompts and enter the time in the format **YYYY:MM:DD:hh:mm:ss**
+	- If successful, the new time should be displayed. Otherwise, you must re-enter time setting mode and try again.
+
+## Building and Loading Code
