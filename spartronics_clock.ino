@@ -41,7 +41,7 @@
 
 #define NUM_ELEMENTS(x) (sizeof(x) / sizeof(x[0]))
 
-// Spartronics colors!
+// Spartronics colors! (From ATLaS, 2014)
 #define SPARTRONICS_YELLOW Adafruit_NeoMatrix::Color(90, 90, 0)
 #define SPARTRONICS_BLUE Adafruit_NeoMatrix::Color(0, 50, 170)
 
