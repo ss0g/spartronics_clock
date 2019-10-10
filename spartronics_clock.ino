@@ -520,7 +520,7 @@ static State_t _handle_state_date(Event_t event, bool first_time)
         case EVENT_TIMER:
             if (time_in_state() > 10 /* seconds */)
             {
-                next_state = STATE_DATE;
+                next_state = STATE_TIME;
             }
             break;
         case EVENT_MODE:
@@ -604,7 +604,8 @@ static State_t _handle_state_time(Event_t event, bool first_time)
             next_state = STATE_DATE;
             break;
         case EVENT_SET:
-            // Set the time
+            // Special event, only used in this state
+            // Set the time (over the USB port)
             next_state = STATE_SET_TIME;
             break;
         default:
