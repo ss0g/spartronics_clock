@@ -65,6 +65,13 @@ static const char *_messages[] = {
     "HELIOS",
     "THEMIS",
     "CHAOS",
+    "INFINITE RECHARGE!",
+    "Sleep? Who has time for that?",
+    "Safety Glasses!",
+    "More than Robots",
+    "How about a scissor lift?",
+    "I buid robots...",
+    "Do. Or do not. There is no try.",
 };
 
 /**
@@ -88,14 +95,13 @@ static const CalendarTime_t _important_times[] = {
     { 2020,  1,  4,  7,  0,  0, "Kickoff" },            // Kickoff
     { 2020,  2, 18, 21,  0,  0, "Bag day" },            // Pseudo-bag-day
     { 2020,  2, 28, 12,  0,  0, "Glacier Peak" },       // Glacier Peak
- // { 2020,  3, 13, 12,  0,  0, "EVENT 2" },            // (EVENT #2 - TBD)
+    { 2020,  3, 20, 12,  0,  0, "Bellingham" },         // Bellingham
     { 2020,  4,  1,  9,  0,  0, "Districts" },          // District Champs
     { 2020,  4, 14, 12,  0,  0, "Worlds" },             // Worlds
 };
 
 static time_t _target_time;
 static const char * _target_description;
-
 
 /**
  *  Color names for various display modes
@@ -429,6 +435,12 @@ static State_t _handle_state_countdown(Event_t event, bool first_time)
     time_t time_now = now();
     uint32_t countdown_time = 0;
 
+    if (first_time)
+    {
+        // Refresh the software clock from the hardware
+        get_time_from_rtc();
+    }
+
     switch (event)
     {
         case EVENT_TIMER:
@@ -502,6 +514,9 @@ static State_t _handle_state_date(Event_t event, bool first_time)
     {
         tmElements_t tm;
 
+        // Refresh the software clock from the hardware
+        get_time_from_rtc();
+
         // Get the calendar time
         breakTime(now(), tm);
         calendar_time.year = tmYearToCalendar(tm.Year);
@@ -556,6 +571,9 @@ static State_t _handle_state_time(Event_t event, bool first_time)
 
     if (first_time)
     {
+        // Refresh the software clock from the hardware
+        get_time_from_rtc();
+
         // Get the calendar time
         breakTime(now(), tm);
         calendar_time.year = tmYearToCalendar(tm.Year);

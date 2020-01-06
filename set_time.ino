@@ -26,18 +26,29 @@ void print2digits(int number)
 
 /**
  * Set time: 1st get time from computer, 2nd write to RTC
- * Note: this code could be simplified by switching use of Serial.parseInt()
  */
 time_t set_time()
 {
     tmElements_t tm;
     char time_string[32];
 
-    // prompt user for time and set it on the board
+    // Check if the serial port is connected and available
+    if (!Serial)
+    {
+        return 0;
+    }
+
+    // Put a message on the clock to indicate we are in time set mode
     message_print("SET TIME", COLOR_RED);
 
-    // read & parse time from the user
-    Serial.println("Make sure Serial Terminal is set to Newline");
+    // Drain all of the old bytes out of the serial input buffer
+    while (Serial.available() > 0)
+    {
+        Serial.read();
+    }
+
+    // Print out a header to prompt the user for time data
+    Serial.println("\r\nMake sure Serial Terminal is set to Newline");
     // Print out the current time
     if (RTC.read(tm))
     {
@@ -61,26 +72,26 @@ time_t set_time()
     }
     Serial.println("Enter today's date and time: YYYY:MM:DD:hh:mm:ss");
 
-    // NOTE: sscanf can be replaced w/ Serial.parseInt()
+    // Read the time string from the user
     size_t num_chars = get_string_from_serial(time_string, sizeof(time_string));
     Serial.print("Received ");
     Serial.print(num_chars);
     Serial.print(" characters: ");
     Serial.println(time_string);
 
+    // Convert the string representation to the time value
     time_t t;
-
-    CalendarTime_t set_time;
+    CalendarTime_t the_time;
     if (sscanf(time_string, "%04u:%02u:%02u:%02u:%02u:%02u",
-                &set_time.year, &set_time.month, &set_time.day,
-                &set_time.hour, &set_time.minute, &set_time.second) != 6)
+                &the_time.year, &the_time.month, &the_time.day,
+                &the_time.hour, &the_time.minute, &the_time.second) != 6)
     {
         Serial.println("Error: problem parsing YYYY:MM:DD:hh:mm:ss");
         return 0;
     }
-    t = convert_time(set_time);
+    t = convert_time(the_time);
 
-    // set RTC time
+    // Set the RTC (hardware clock) time
     setTime(t);                 // Set the internal clock
     if (save_time_to_rtc() != true)
     {

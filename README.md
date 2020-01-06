@@ -27,8 +27,14 @@ Scrolling message is supported which is set via the mode button
 	- Start the Arduino serial monitor (**Tools -> Serial Monitor**), and set data rate to **115200bps**
 	- On clock module, change mode to time display by pressing **Inc** twice
 	- While the time is displayed, click **Mode** twice (quickly)
-	- The words **SET TIME** should be displayed in red on the clock
+	- The words **SET TIME** should be displayed in red on the clock, and a prompt message should be displayed o the serial terminal
 	- Using the serial terminal, follow the prompts and enter the time in the format **YYYY:MM:DD:hh:mm:ss**
-	- If successful, the new time should be displayed. Otherwise, you must re-enter time setting mode and try again.
+		- The date can be copied to clipboard on Mac with the command: **date +%Y:%m:%d:%H:%M:%S | pbcopy**
+	- If successful, the new time should be displayed. Otherwise, you must re-enter time setting mode and try again
 
 ## Building and Loading Code
+TBD
+
+## Future Enhancements?
+- Use the EEPROM on the RTC board to store message strings that can be updated via the serial terminal
+- Use the EEPROM on the RTC board to store upcoming countdown dates that can be updated via the serial termanal
