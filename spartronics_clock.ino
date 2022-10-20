@@ -91,13 +91,10 @@ typedef struct {
  *  List of events to count-down to. They must be sorted in ascending order.
  */
 static const CalendarTime_t _important_times[] = {
-    { 2019, 10, 11, 15, 15,  0, "GirlsGen" },           // GirlsGen pack time
-    { 2020,  1,  4,  7,  0,  0, "Kickoff" },            // Kickoff
-    { 2020,  2, 18, 21,  0,  0, "Bag day" },            // Pseudo-bag-day
-    { 2020,  2, 28, 12,  0,  0, "Glacier Peak" },       // Glacier Peak
-    { 2020,  3, 20, 12,  0,  0, "Bellingham" },         // Bellingham
-    { 2020,  4,  1,  9,  0,  0, "Districts" },          // District Champs
-    { 2020,  4, 14, 12,  0,  0, "Worlds" },             // Worlds
+    { 2023,  1,  7,  9,  0,  0, "Kickoff" },            // Kickoff
+    { 2023,  3,  3,  0,  0,  0, "Glacier Peak" },       // Glacier Peak
+    { 2023,  3, 31,  0,  0,  0, "Auburn" },             // Auburn
+    { 2023,  4,  5,  0,  0,  0, "Districts" },          // District Champs
 };
 
 static time_t _target_time;
